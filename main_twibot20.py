@@ -11,9 +11,13 @@ from BackBone.rgcn import FACNConv as RGCNConv
 from BackBone.self_attention import SelfAttention
 import argparse
 import pickle
-from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score
+from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score,auc,roc_auc_score,precision_recall_curve
 
 PWD = os.path.dirname(os.path.realpath(__file__))
+
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+# os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 
 def edge_mask(edge_index, edge_attr, pe):
@@ -227,12 +231,31 @@ class SEBot(nn.Module):
             test_f1 = f1_score(test_label, test_pred)
             test_recall = recall_score(test_label, test_pred)
             test_precision = precision_score(test_label, test_pred)
+            test_precision1, test_recall1, _ = precision_recall_curve(test_label, test_pred)
+            test_aucpr = auc(test_recall1, test_precision1)
+
+            # sorted_indices = np.argsort(test_pred)
+            # y_pred_sorted = np.array(test_pred)[sorted_indices]
+            # y_true_sorted = np.array(test_label)[sorted_indices]
+
+            # # Compute precision-recall curve with sorted values
+            # precision, recall, _ = precision_recall_curve(y_true_sorted, y_pred_sorted)
+
+            test_rocauc = roc_auc_score(test_label, test_pred)
             if test_acc > 0.869:
                 print('large test_acc: ', test_acc)
                 _ = self.backbone(batch['data'], return_attention=True)
 
+            # 打印这些指标
+            print(f"Test Accuracy: {test_acc:.4f}")
+            print(f"Test F1 Score: {test_f1:.4f}")
+            print(f"Test Recall: {test_recall:.4f}")
+            print(f"Test Precision: {test_precision:.4f}")
+            print(f"Test AUC-PR: {test_aucpr:.4f}")
+            print(f"Test ROC-AUC: {test_rocauc:.4f}")
+
             self.test_results.append(
-                [test_acc, test_f1, test_recall, test_precision])
+                [test_acc, test_f1, test_recall, test_precision, test_aucpr, test_rocauc])
             return val_acc, val_loss.item(), test_acc, test_loss.item()
 
     def get_test_results(self):
@@ -280,7 +303,8 @@ class Trainer(object):
         # self.args.num_features = self.subgraphs[0]['node_features'].size(1)
         self.args.num_features = self.args.hidden_dim
 
-        path = './dataset/' + self.args.dataset + '/'
+        # path = './dataset/' + self.args.dataset + '/'
+        path = '/mnt/mydata/ad/mgao/New0624/twi20/processed_data/'
         edge_index = torch.load(path + 'edge_index.pt')
         edge_type = torch.load(path + 'edge_type.pt')
         edge_index, edge_type = relational_undirected(edge_index, edge_type)
@@ -356,6 +380,7 @@ class Trainer(object):
             val_accs.append(val_acc)
             val_losses.append(val_loss)
             test_accs.append(test_acc)
+            
             if self.patience > self.args.patience:
                 break
 
@@ -366,9 +391,9 @@ class Trainer(object):
         min_loss_index = val_losses.argsort()[:self.save_top_k]
         for i in min_loss_index:
             print(
-                'epoch: %d, test_acc: %.4f, test_f1: %.4f, test_recall: %.4f, test_precision: %.4f'
+                'epoch: %d, test_acc: %.4f, test_f1: %.4f, test_recall: %.4f, test_precision: %.4f, test_aucpr: %.4f, test_rocauc: %.4f'
                 % (i, test_results[i][0], test_results[i][1],
-                   test_results[i][2], test_results[i][3]))
+                   test_results[i][2], test_results[i][3], test_results[i][4], test_results[i][5]))
 
         return test_accs[val_losses.argmin()]
 
@@ -400,12 +425,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_blocks', type=int, default=2)
     parser.add_argument('--num_convs', type=int, default=3)
     parser.add_argument('--link_input', action='store_true', default=False)
-    parser.add_argument('-gp',
-                        '--global-pooling',
-                        type=str,
-                        default="average",
-                        choices=["sum", "average"],
-                        help='Pooling for over nodes: sum or average')
+    parser.add_argument('-gp','--global-pooling',type=str,default="average",choices=["sum", "average"],help='Pooling for over nodes: sum or average')
     parser.add_argument('--pe', type=float, default=0.2)  # edge dropout rate
     parser.add_argument('--pf', type=float, default=0.2)  # edge dropout ratee
 
@@ -417,16 +437,15 @@ if __name__ == '__main__':
     parser.add_argument('--conv_dropout', type=float, default=0.5)
     parser.add_argument('--pooling_dropout', type=float, default=0.5)
     parser.add_argument('--epochs', default=80, type=int)
-    parser.add_argument("--gpu", type=int, default=1)
+    parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument('--patience', type=int, default=50)
-    parser.add_argument(
-        '--save_top_k', type=int,
-        default=6)  # save top k models with best validation loss
+    parser.add_argument('--save_top_k', type=int,default=6)  # save top k models with best validation loss
 
     args = parser.parse_args()
     print(args.link_input)
-    args.device = torch.device(
-        "cuda:" + str(args.gpu) if torch.cuda.is_available() else "cpu")
+    # args.device = torch.device(
+    #     "cuda:" + str(args.gpu) if torch.cuda.is_available() else "cpu")
+    args.device = torch.device("cpu")
     trainer = Trainer(args)
     test_acc = trainer.train()
-    print('test_acc: ', test_acc)
+    # print('test_acc: ', test_acc)

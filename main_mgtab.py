@@ -268,6 +268,11 @@ class SEBot(nn.Module):
                                   self.args.temperature)
         if self.training:
             # Training
+            
+
+            out_u = torch.tensor(out_u,dtype=torch.float) if not isinstance(out_u, torch.Tensor) else out_u.float()
+            out_g = torch.tensor(out_g,dtype=torch.float) if not isinstance(out_g, torch.Tensor) else out_g.float()
+            out_c = torch.tensor(out_c,dtype=torch.float) if not isinstance(out_c, torch.Tensor) else out_c.float()
             train_out = torch.cat([out_u, out_g, out_c],
                                   dim=1)[batch['data'].train_idx]
             train_out = self.classifier(train_out)
@@ -277,6 +282,10 @@ class SEBot(nn.Module):
             return loss
         else:
             # Validation
+            # 确保所有输入是张量
+            out_u = torch.tensor(out_u).long() if not isinstance(out_u, torch.Tensor) else out_u
+            out_g = torch.tensor(out_g).long() if not isinstance(out_g, torch.Tensor) else out_g
+            out_c = torch.tensor(out_c).long() if not isinstance(out_c, torch.Tensor) else out_c
             val_out = torch.cat([out_u, out_g, out_c],
                                 dim=1)[batch['data'].val_idx]
             val_out = self.classifier(val_out)
@@ -348,7 +357,8 @@ class Trainer(object):
         # self.args.num_features = self.subgraphs[0]['node_features'].size(1)
         self.args.num_features = self.args.hidden_dim
 
-        path = './dataset/' + self.args.dataset + '/'
+        # path = './dataset/' + self.args.dataset + '/'
+        path = './MGTAB/'
         edge_index = torch.load(path + 'edge_index.pt')
         edge_type = torch.load(path + 'edge_type.pt')
         self.args.num_relations = edge_type.max() + 1
@@ -367,7 +377,7 @@ class Trainer(object):
             x = torch.load(path + 'features.pt')
             sample_idx = shuffle(np.array(range(self.args.node_num)),
                                  random_state=self.args.seed)
-        label = torch.load(path + 'label.pt')
+        label = torch.load(path + 'labels_bot.pt')
         data = Data(x=x, edge_index=edge_index, edge_type=edge_type,
                     y=label).to(self.args.device)
         data.train_idx = sample_idx[:int(0.7 * args.node_num)]
@@ -451,7 +461,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='SEP')
     parser.add_argument('--dataset', type=str, default='MGTAB')
     parser.add_argument('--node_num', type=int, default=10199)
-    parser.add_argument('--tree_depth', type=int, default=4)
+    parser.add_argument('--tree_depth', type=int, default=6)
 
     parser.add_argument('--cat_num', type=int, default=3)
     parser.add_argument('--prop_num', type=int, default=5)
@@ -487,7 +497,7 @@ if __name__ == '__main__':
     parser.add_argument('--conv_dropout', type=float, default=0.3)
     parser.add_argument('--pooling_dropout', type=float, default=0.3)
     parser.add_argument('--epochs', default=200, type=int)
-    parser.add_argument("--gpu", type=int, default=1)
+    parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument('--patience', type=int, default=50)
     parser.add_argument(
         '--save_top_k', type=int,
