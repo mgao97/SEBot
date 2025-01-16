@@ -221,6 +221,10 @@ class SEBot(nn.Module):
             # Test
             test_out = torch.cat([out_u, out_g, out_c],
                                  dim=1)[batch['data'].test_idx]
+            
+            torch.save(test_out, 'sebot_twi20_emb.pt')
+            torch.save(batch['data'].y[batch['data'].test_idx].cpu(), 'sebot_twi20_y.pt')
+
             test_out = self.classifier(test_out)
             test_loss = F.cross_entropy(
                 test_out, batch['data'].y[batch['data'].test_idx])
@@ -234,12 +238,6 @@ class SEBot(nn.Module):
             test_precision1, test_recall1, _ = precision_recall_curve(test_label, test_pred)
             test_aucpr = auc(test_recall1, test_precision1)
 
-            # sorted_indices = np.argsort(test_pred)
-            # y_pred_sorted = np.array(test_pred)[sorted_indices]
-            # y_true_sorted = np.array(test_label)[sorted_indices]
-
-            # # Compute precision-recall curve with sorted values
-            # precision, recall, _ = precision_recall_curve(y_true_sorted, y_pred_sorted)
 
             test_rocauc = roc_auc_score(test_label, test_pred)
             if test_acc > 0.869:

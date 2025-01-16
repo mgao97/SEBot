@@ -11,7 +11,7 @@ from BackBone.rgcn import FACNConv as RGCNConv
 # from BackBone.self_attention import SelfAttention
 import argparse
 import pickle
-from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score
+from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score,auc,roc_auc_score,precision_recall_curve
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils import shuffle
 
@@ -297,6 +297,10 @@ class SEBot(nn.Module):
 
             test_out = torch.cat([out_u, out_g, out_c],
                                  dim=1)[batch['data'].test_idx]
+            
+            torch.save(test_out, 'sebot_mgtab_emb.pt')
+            torch.save(batch['data'].y[batch['data'].test_idx].cpu(), 'sebot_mgtab_y.pt')
+
             test_out = self.classifier(test_out)
             test_loss = F.cross_entropy(
                 test_out, batch['data'].y[batch['data'].test_idx])
@@ -307,8 +311,12 @@ class SEBot(nn.Module):
             test_f1 = f1_score(test_label, test_pred)
             test_recall = recall_score(test_label, test_pred)
             test_precision = precision_score(test_label, test_pred)
+            test_precision1, test_recall1, _ = precision_recall_curve(test_label, test_pred)
+            test_aucpr = auc(test_recall1, test_precision1)
+            test_rocauc = roc_auc_score(test_label, test_pred)
+
             self.test_results.append(
-                [test_acc, test_f1, test_recall, test_precision])
+                [test_acc, test_f1, test_recall, test_precision, test_aucpr, test_rocauc])
             return val_acc, val_loss.item(), test_acc, test_loss.item()
 
     def get_test_results(self):
@@ -446,9 +454,9 @@ class Trainer(object):
         min_loss_index = val_losses.argsort()[:self.save_top_k]
         for i in min_loss_index:
             print(
-                'epoch: %d, test_acc: %.4f, test_f1: %.4f, test_recall: %.4f, test_precision: %.4f'
+                'epoch: %d, test_acc: %.4f, test_f1: %.4f, test_recall: %.4f, test_precision: %.4f, test_aucpr: %.4f, test_rocauc: %.4f'
                 % (i, test_results[i][0], test_results[i][1],
-                   test_results[i][2], test_results[i][3]))
+                   test_results[i][2], test_results[i][3], test_results[i][4], test_results[i][5]))
 
         return test_accs[val_losses.argmin()]
 
